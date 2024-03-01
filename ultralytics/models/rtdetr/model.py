@@ -7,6 +7,8 @@ hybrid encoder and IoU-aware query selection for enhanced detection accuracy.
 For more information on RT-DETR, visit: https://arxiv.org/pdf/2304.08069.pdf
 """
 
+from pathlib import Path
+
 from ultralytics.engine.model import Model
 from ultralytics.nn.tasks import RTDETRDetectionModel
 
@@ -24,7 +26,7 @@ class RTDETR(Model):
         model (str): Path to the pre-trained model. Defaults to 'rtdetr-l.pt'.
     """
 
-    def __init__(self, model='rtdetr-l.pt') -> None:
+    def __init__(self, model="rtdetr-l.pt") -> None:
         """
         Initializes the RT-DETR model with the given pre-trained model file. Supports .pt and .yaml formats.
 
@@ -34,9 +36,9 @@ class RTDETR(Model):
         Raises:
             NotImplementedError: If the model file extension is not 'pt', 'yaml', or 'yml'.
         """
-        if model and model.split('.')[-1] not in ('pt', 'yaml', 'yml'):
-            raise NotImplementedError('RT-DETR only supports creating from *.pt, *.yaml, or *.yml files.')
-        super().__init__(model=model, task='detect')
+        if model and Path(model).suffix not in (".pt", ".yaml", ".yml"):
+            raise NotImplementedError("RT-DETR only supports creating from *.pt, *.yaml, or *.yml files.")
+        super().__init__(model=model, task="detect")
 
     @property
     def task_map(self) -> dict:
@@ -47,8 +49,10 @@ class RTDETR(Model):
             dict: A dictionary mapping task names to Ultralytics task classes for the RT-DETR model.
         """
         return {
-            'detect': {
-                'predictor': RTDETRPredictor,
-                'validator': RTDETRValidator,
-                'trainer': RTDETRTrainer,
-                'model': RTDETRDetectionModel}}
+            "detect": {
+                "predictor": RTDETRPredictor,
+                "validator": RTDETRValidator,
+                "trainer": RTDETRTrainer,
+                "model": RTDETRDetectionModel,
+            }
+        }
