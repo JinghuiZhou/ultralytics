@@ -167,7 +167,7 @@ class YOLOv8:
             box = boxes[i]
             score = scores[i]
             class_id = class_ids[i]
-
+            print(f'{self.classes[class_id]}: {score:.2f}')
             # Draw the detection on the input image
             self.draw_detections(input_image, box, score, class_id)
 
@@ -189,8 +189,8 @@ class YOLOv8:
 
         # Store the shape of the input for later use
         input_shape = model_inputs[0].shape
-        self.input_width = input_shape[2]
-        self.input_height = input_shape[3]
+        self.input_width = 640
+        self.input_height = 640
 
         # Preprocess the image data
         img_data = self.preprocess()

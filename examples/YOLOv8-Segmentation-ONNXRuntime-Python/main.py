@@ -30,6 +30,8 @@ class YOLOv8Seg:
 
         # Get model width and height(YOLOv8-seg only has one input)
         self.model_height, self.model_width = [x.shape for x in self.session.get_inputs()][0][-2:]
+        self.model_height = 640 if type(self.model_height) == str else self.model_height
+        self.model_width = 640 if type(self.model_width) == str else self.model_width
 
         # Load COCO class names
         self.classes = yaml_load(check_yaml('coco128.yaml'))['names']
@@ -275,9 +277,9 @@ class YOLOv8Seg:
         im_canvas = im.copy()
         for (*box, conf, cls_), segment in zip(bboxes, segments):
             # draw contour and fill mask
-            cv2.polylines(im, np.int32([segment]), True, (255, 255, 255), 2)  # white borderline
+            cv2.polylines(im, np.int32([segment]), True, (255, 255, 255), 5)  # white borderline
             cv2.fillPoly(im_canvas, np.int32([segment]), self.color_palette(int(cls_), bgr=True))
-
+            # cv2.fillPoly(im_canvas, np.int32([segment]), (255, 255, 255))
             # draw bbox rectangle
             cv2.rectangle(im, (int(box[0]), int(box[1])), (int(box[2]), int(box[3])),
                           self.color_palette(int(cls_), bgr=True), 1, cv2.LINE_AA)
@@ -318,4 +320,4 @@ if __name__ == '__main__':
 
     # Draw bboxes and polygons
     if len(boxes) > 0:
-        model.draw_and_visualize(img, boxes, segments, vis=False, save=True)
+        model.draw_and_visualize(img, boxes, segments, vis=True, save=True)
