@@ -127,6 +127,7 @@ class AutoBackend(nn.Module):
         stride = 32  # default stride
         model, metadata = None, None
 
+
         # Set device
         cuda = torch.cuda.is_available() and device.type != "cpu"  # use CUDA
         if cuda and not any([nn_module, pt, jit, engine, onnx]):  # GPU dataloader formats
@@ -135,7 +136,8 @@ class AutoBackend(nn.Module):
 
         # Download if not local
         if not (pt or triton or nn_module):
-            w = attempt_download_asset(w)
+            if not isinstance(weights, dict):
+                w = attempt_download_asset(w)
 
         # In-memory PyTorch model
         if nn_module:
@@ -162,6 +164,20 @@ class AutoBackend(nn.Module):
             stride = max(int(model.stride.max()), 32)  # model stride
             names = model.module.names if hasattr(model, "module") else model.names  # get class names
             model.half() if fp16 else model.float()
+            self.model = model  # explicitly assign for to(), cpu(), cuda(), half()
+
+        elif isinstance(weights,dict):
+            from ultralytics.nn.tasks import my_attempt_load_one_weight
+
+            model = my_attempt_load_one_weight(
+                weights, device=device, inplace=True, fuse=fuse
+            )
+            if hasattr(model, "kpt_shape"):
+                kpt_shape = model.kpt_shape  # pose-only
+            stride = max(int(model.stride.max()), 32)  # model stride
+            names = model.module.names if hasattr(model, "module") else model.names  # get class names
+            model.half() if fp16 else model.float()
+            pt = True
             self.model = model  # explicitly assign for to(), cpu(), cuda(), half()
 
         # TorchScript

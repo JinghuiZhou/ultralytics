@@ -147,6 +147,9 @@ class BaseTrainer:
         if RANK in {-1, 0}:
             callbacks.add_integration_callbacks(self)
 
+        # 增加检查点内存
+        self.best_model = None
+
     def add_callback(self, event: str, callback):
         """Appends the given callback."""
         self.callbacks[event].append(callback)
@@ -490,11 +493,15 @@ class BaseTrainer:
         serialized_ckpt = buffer.getvalue()  # get the serialized content to save
 
         # Save checkpoints
-        self.last.write_bytes(serialized_ckpt)  # save last.pt
+        # self.last.write_bytes(serialized_ckpt)  # save last.pt
+        # if self.best_fitness == self.fitness:
+        #     self.best.write_bytes(serialized_ckpt)  # save best.pt
+        # if (self.save_period > 0) and (self.epoch > 0) and (self.epoch % self.save_period == 0):
+        #     (self.wdir / f"epoch{self.epoch}.pt").write_bytes(serialized_ckpt)  # save epoch, i.e. 'epoch3.pt'
+
         if self.best_fitness == self.fitness:
-            self.best.write_bytes(serialized_ckpt)  # save best.pt
-        if (self.save_period > 0) and (self.epoch > 0) and (self.epoch % self.save_period == 0):
-            (self.wdir / f"epoch{self.epoch}.pt").write_bytes(serialized_ckpt)  # save epoch, i.e. 'epoch3.pt'
+            self.best_model = io.BytesIO(serialized_ckpt)
+            # print('best_model:', torch.load(self.best_model, map_location="cpu"))
 
     def get_dataset(self):
         """
@@ -623,17 +630,30 @@ class BaseTrainer:
         path = Path(name)
         self.plots[path] = {"data": data, "timestamp": time.time()}
 
+    # def final_eval(self):
+    #     """Performs final evaluation and validation for object detection YOLO model."""
+    #     for f in self.last, self.best:
+    #         if f.exists():
+    #             strip_optimizer(f)  # strip optimizers
+    #             if f is self.best:
+    #                 LOGGER.info(f"\nValidating {f}...")
+    #                 self.validator.args.plots = self.args.plots
+    #                 self.metrics = self.validator(model=f)
+    #                 self.metrics.pop("fitness", None)
+    #                 self.run_callbacks("on_fit_epoch_end")
+
     def final_eval(self):
         """Performs final evaluation and validation for object detection YOLO model."""
-        for f in self.last, self.best:
-            if f.exists():
-                strip_optimizer(f)  # strip optimizers
-                if f is self.best:
-                    LOGGER.info(f"\nValidating {f}...")
-                    self.validator.args.plots = self.args.plots
-                    self.metrics = self.validator(model=f)
-                    self.metrics.pop("fitness", None)
-                    self.run_callbacks("on_fit_epoch_end")
+        # print('best_model_strip_before:', torch.load(self.best_model, map_location="cpu"))
+
+        # 返回状态字典
+        self.best_model = strip_optimizer(self.best_model)  # strip optimizers
+        LOGGER.info(f"\nValidating...")
+        self.validator.args.plots = self.args.plots
+        self.metrics = self.validator(model=self.best_model)
+        self.metrics.pop("fitness", None)
+        self.run_callbacks("on_fit_epoch_end")
+
 
     def check_resume(self, overrides):
         """Check if resume checkpoint exists and update arguments accordingly."""

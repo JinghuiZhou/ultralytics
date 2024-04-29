@@ -469,7 +469,49 @@ class ModelEMA:
             copy_attr(self.ema, model, include, exclude)
 
 
-def strip_optimizer(f: Union[str, Path] = "best.pt", s: str = "") -> None:
+# def strip_optimizer(f: Union[str, Path] = "best.pt", s: str = "") -> None:
+#     """
+#     Strip optimizer from 'f' to finalize training, optionally save as 's'.
+#
+#     Args:
+#         f (str): file path to model to strip the optimizer from. Default is 'best.pt'.
+#         s (str): file path to save the model with stripped optimizer to. If not provided, 'f' will be overwritten.
+#
+#     Returns:
+#         None
+#
+#     Example:
+#         ```python
+#         from pathlib import Path
+#         from ultralytics.utils.torch_utils import strip_optimizer
+#
+#         for f in Path('path/to/weights').rglob('*.pt'):
+#             strip_optimizer(f)
+#         ```
+#     """
+#     x = torch.load(f, map_location=torch.device("cpu"))
+#     if "model" not in x:
+#         LOGGER.info(f"Skipping {f}, not a valid Ultralytics model.")
+#         return
+#
+#     if hasattr(x["model"], "args"):
+#         x["model"].args = dict(x["model"].args)  # convert from IterableSimpleNamespace to dict
+#     args = {**DEFAULT_CFG_DICT, **x["train_args"]} if "train_args" in x else None  # combine args
+#     if x.get("ema"):
+#         x["model"] = x["ema"]  # replace model with ema
+#     for k in "optimizer", "best_fitness", "ema", "updates":  # keys
+#         x[k] = None
+#     x["epoch"] = -1
+#     x["model"].half()  # to FP16
+#     for p in x["model"].parameters():
+#         p.requires_grad = False
+#     x["train_args"] = {k: v for k, v in args.items() if k in DEFAULT_CFG_KEYS}  # strip non-default keys
+#     # x['model'].args = x['train_args']
+#     torch.save(x, s or f)
+#     mb = os.path.getsize(s or f) / 1e6  # file size
+#     LOGGER.info(f"Optimizer stripped from {f},{f' saved as {s},' if s else ''} {mb:.1f}MB")
+
+def strip_optimizer(f):
     """
     Strip optimizer from 'f' to finalize training, optionally save as 's'.
 
@@ -506,10 +548,10 @@ def strip_optimizer(f: Union[str, Path] = "best.pt", s: str = "") -> None:
     for p in x["model"].parameters():
         p.requires_grad = False
     x["train_args"] = {k: v for k, v in args.items() if k in DEFAULT_CFG_KEYS}  # strip non-default keys
-    # x['model'].args = x['train_args']
-    torch.save(x, s or f)
-    mb = os.path.getsize(s or f) / 1e6  # file size
-    LOGGER.info(f"Optimizer stripped from {f},{f' saved as {s},' if s else ''} {mb:.1f}MB")
+
+    LOGGER.info(f"Optimizer stripped")
+    return x
+
 
 
 def convert_optimizer_state_dict_to_fp16(state_dict):

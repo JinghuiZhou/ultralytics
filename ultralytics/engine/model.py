@@ -9,7 +9,7 @@ import torch
 
 from ultralytics.cfg import TASK2DATA, get_cfg, get_save_dir
 from ultralytics.hub.utils import HUB_WEB_ROOT
-from ultralytics.nn.tasks import attempt_load_one_weight, guess_model_task, nn, yaml_model_load
+from ultralytics.nn.tasks import attempt_load_one_weight, my_attempt_load_one_weight, guess_model_task, nn, yaml_model_load
 from ultralytics.utils import (
     ARGV,
     ASSETS,
@@ -671,13 +671,21 @@ class Model(nn.Module):
 
         self.trainer.hub_session = self.session  # attach optional HUB session
         self.trainer.train()
+        # # Update model and cfg after training
+        # if RANK in {-1, 0}:
+        #     ckpt = self.trainer.best if self.trainer.best.exists() else self.trainer.last
+        #     self.model, _ = attempt_load_one_weight(ckpt)
+        #     self.overrides = self.model.args
+        #     self.metrics = getattr(self.trainer.validator, "metrics", None)  # TODO: no metrics returned by DDP
+        # return self.metrics
+
         # Update model and cfg after training
         if RANK in {-1, 0}:
-            ckpt = self.trainer.best if self.trainer.best.exists() else self.trainer.last
-            self.model, _ = attempt_load_one_weight(ckpt)
+            self.model = my_attempt_load_one_weight(self.trainer.best_model)
             self.overrides = self.model.args
             self.metrics = getattr(self.trainer.validator, "metrics", None)  # TODO: no metrics returned by DDP
         return self.metrics
+
 
     def tune(
         self,
