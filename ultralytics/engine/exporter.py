@@ -132,6 +132,7 @@ def try_export(inner_func):
         try:
             with Profile() as dt:
                 f, model = inner_func(*args, **kwargs)
+
             LOGGER.info(f"{prefix} export success ✅ {dt.t:.1f}s, saved as '{f}' ({file_size(f):.1f} MB)")
             return f, model
         except Exception as e:
@@ -285,7 +286,7 @@ class Exporter:
         if engine:  # TensorRT required before ONNX
             f[1], _ = self.export_engine()
         if onnx:  # ONNX
-            f[2], _ = self.export_onnx()
+            model_data, _ = self.export_onnx()
         if xml:  # OpenVINO
             f[3], _ = self.export_openvino()
         if coreml:  # CoreML
@@ -307,29 +308,29 @@ class Exporter:
             f[11], _ = self.export_ncnn()
 
         # Finish
-        f = [str(x) for x in f if x]  # filter out '' and None
-        if any(f):
-            f = str(Path(f[-1]))
-            square = self.imgsz[0] == self.imgsz[1]
-            s = (
-                ""
-                if square
-                else f"WARNING ⚠️ non-PyTorch val requires square images, 'imgsz={self.imgsz}' will not "
-                f"work. Use export 'imgsz={max(self.imgsz)}' if val is required."
-            )
-            imgsz = self.imgsz[0] if square else str(self.imgsz)[1:-1].replace(" ", "")
-            predict_data = f"data={data}" if model.task == "segment" and fmt == "pb" else ""
-            q = "int8" if self.args.int8 else "half" if self.args.half else ""  # quantization
-            LOGGER.info(
-                f'\nExport complete ({time.time() - t:.1f}s)'
-                f"\nResults saved to {colorstr('bold', file.parent.resolve())}"
-                f'\nPredict:         yolo predict task={model.task} model={f} imgsz={imgsz} {q} {predict_data}'
-                f'\nValidate:        yolo val task={model.task} model={f} imgsz={imgsz} data={data} {q} {s}'
-                f'\nVisualize:       https://netron.app'
-            )
+        # f = [str(x) for x in f if x]  # filter out '' and None
+        # if any(f):
+        #     f = str(Path(f[-1]))
+        #     square = self.imgsz[0] == self.imgsz[1]
+        #     s = (
+        #         ""
+        #         if square
+        #         else f"WARNING ⚠️ non-PyTorch val requires square images, 'imgsz={self.imgsz}' will not "
+        #         f"work. Use export 'imgsz={max(self.imgsz)}' if val is required."
+        #     )
+        #     imgsz = self.imgsz[0] if square else str(self.imgsz)[1:-1].replace(" ", "")
+        #     predict_data = f"data={data}" if model.task == "segment" and fmt == "pb" else ""
+        #     q = "int8" if self.args.int8 else "half" if self.args.half else ""  # quantization
+        #     LOGGER.info(
+        #         f'\nExport complete ({time.time() - t:.1f}s)'
+        #         f"\nResults saved to {colorstr('bold', file.parent.resolve())}"
+        #         f'\nPredict:         yolo predict task={model.task} model={f} imgsz={imgsz} {q} {predict_data}'
+        #         f'\nValidate:        yolo val task={model.task} model={f} imgsz={imgsz} data={data} {q} {s}'
+        #         f'\nVisualize:       https://netron.app'
+        #     )
 
         self.run_callbacks("on_export_end")
-        return f  # return list of exported files/dirs
+        return model_data  # return list of exported files/dirs
 
     @try_export
     def export_torchscript(self, prefix=colorstr("TorchScript:")):
@@ -351,6 +352,7 @@ class Exporter:
     @try_export
     def export_onnx(self, prefix=colorstr("ONNX:")):
         """YOLOv8 ONNX export."""
+        import io
         requirements = ["onnx>=1.12.0"]
         if self.args.simplify:
             requirements += ["onnxsim>=0.4.33", "onnxruntime-gpu" if torch.cuda.is_available() else "onnxruntime"]
@@ -373,10 +375,12 @@ class Exporter:
             elif isinstance(self.model, DetectionModel):
                 dynamic["output0"] = {0: "batch", 2: "anchors"}  # shape(1, 84, 8400)
 
+        # 将文件输出到缓存中
+        buffer = io.BytesIO()
         torch.onnx.export(
             self.model.cpu() if dynamic else self.model,  # dynamic=True only compatible with cpu
             self.im.cpu() if dynamic else self.im,
-            f,
+            buffer,  # 输出到缓存中
             verbose=False,
             opset_version=opset_version,
             do_constant_folding=True,  # WARNING: DNN inference with torch>=1.12 may require do_constant_folding=False
@@ -385,8 +389,10 @@ class Exporter:
             dynamic_axes=dynamic or None,
         )
 
+        model_data = buffer.getvalue()
+        buffer.flush()
         # Checks
-        model_onnx = onnx.load(f)  # load onnx model
+        model_onnx = onnx.load_model_from_string(model_data)  # load onnx model
         # onnx.checker.check_model(model_onnx)  # check onnx model
 
         # Simplify
@@ -405,9 +411,11 @@ class Exporter:
         for k, v in self.metadata.items():
             meta = model_onnx.metadata_props.add()
             meta.key, meta.value = k, str(v)
-
-        onnx.save(model_onnx, f)
-        return f, model_onnx
+        f = io.BytesIO()
+        onnx.save_model(model_onnx, f)
+        model_data = f.getvalue()
+        f.close()
+        return model_data, model_onnx
 
     @try_export
     def export_openvino(self, prefix=colorstr("OpenVINO:")):
@@ -656,7 +664,7 @@ class Exporter:
         """YOLOv8 TensorRT export https://developer.nvidia.com/tensorrt."""
         assert self.im.device.type != "cpu", "export running on CPU but must be on GPU, i.e. use 'device=0'"
         self.args.simplify = True
-        f_onnx, _ = self.export_onnx()  # run before trt import https://github.com/ultralytics/ultralytics/issues/7016
+        model_data, _ = self.export_onnx()  # run before trt import https://github.com/ultralytics/ultralytics/issues/7016
 
         try:
             import tensorrt as trt  # noqa
