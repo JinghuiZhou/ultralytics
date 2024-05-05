@@ -9,7 +9,7 @@ import torch
 
 from ultralytics.cfg import TASK2DATA, get_cfg, get_save_dir
 from ultralytics.hub.utils import HUB_WEB_ROOT
-from ultralytics.nn.tasks import attempt_load_one_weight, my_attempt_load_one_weight, guess_model_task, nn, yaml_model_load
+from ultralytics.nn.tasks import attempt_load_one_weight, my_attempt_load_one_weight,attempt_load_encryption_weight, guess_model_task, nn, yaml_model_load
 from ultralytics.utils import (
     ARGV,
     ASSETS,
@@ -237,7 +237,7 @@ class Model(nn.Module):
         weights = checks.check_model_file_from_stem(weights)  # add suffix, i.e. yolov8n -> yolov8n.pt
 
         if Path(weights).suffix == ".pt":
-            self.model, self.ckpt = attempt_load_one_weight(weights)
+            self.model, self.ckpt = attempt_load_encryption_weight(weights)
             self.task = self.model.args["task"]
             self.overrides = self.model.args = self._reset_ckpt_args(self.model.args)
             self.ckpt_path = self.model.pt_path

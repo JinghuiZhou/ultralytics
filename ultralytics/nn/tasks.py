@@ -850,6 +850,46 @@ def my_attempt_load_one_weight(weight, device=None, inplace=True, fuse=False):
     # Return model and ckpt
     return model
 
+def attempt_load_encryption_weight(weight, device=None, inplace=True, fuse=False):
+    """Loads a single model weights."""
+    import io
+    from Crypto.Cipher import AES
+    from Crypto.Util.Padding import pad, unpad
+    # ckpt, weight = torch_safe_load(weight)  # load ckpt
+    with open(weight, 'rb') as file:
+        encrypted_data = file.read()
+    iv = encrypted_data[:AES.block_size]
+    ciphertext = encrypted_data[AES.block_size:]
+    # 初始化AES解密器，使用CBC模式和指定的IV
+    key = b"eC4sjDkglsj6Bhs1"
+    cipher = AES.new(key, AES.MODE_CBC, iv)
+    # 执行解密操作
+    decrypted_data = cipher.decrypt(ciphertext)
+    # 去除PKCS7填充
+    plaintext = unpad(decrypted_data, AES.block_size)
+    ckpt = torch.load(io.BytesIO(plaintext))
+    args = {**DEFAULT_CFG_DICT, **(ckpt.get("train_args", {}))}  # combine model and default args, preferring model args
+    model = (ckpt.get("ema") or ckpt["model"]).to(device).float()  # FP32 model
+
+    # Model compatibility updates
+    model.args = {k: v for k, v in args.items() if k in DEFAULT_CFG_KEYS}  # attach args to model
+    model.pt_path = weight  # attach *.pt file path to model
+    model.task = guess_model_task(model)
+    if not hasattr(model, "stride"):
+        model.stride = torch.tensor([32.0])
+
+    model = model.fuse().eval() if fuse and hasattr(model, "fuse") else model.eval()  # model in eval mode
+
+    # Module updates
+    for m in model.modules():
+        if hasattr(m, "inplace"):
+            m.inplace = inplace
+        elif isinstance(m, nn.Upsample) and not hasattr(m, "recompute_scale_factor"):
+            m.recompute_scale_factor = None  # torch 1.11.0 compatibility
+
+    # Return model and ckpt
+    return model, ckpt
+
 def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
     """Parse a YOLO model.yaml dictionary into a PyTorch model."""
     import ast
