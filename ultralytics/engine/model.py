@@ -302,6 +302,7 @@ class Model(nn.Module):
             AssertionError: If the model is not a PyTorch model.
         """
         self._check_is_pytorch_model()
+
         if isinstance(weights, (str, Path)):
             # weights, self.ckpt = attempt_load_one_weight(weights)
             weights, self.ckpt = attempt_load_encryption_weight(weights)
