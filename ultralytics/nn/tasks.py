@@ -867,7 +867,7 @@ def attempt_load_encryption_weight(weight, device=None, inplace=True, fuse=False
     decrypted_data = cipher.decrypt(ciphertext)
     # 去除PKCS7填充
     plaintext = unpad(decrypted_data, AES.block_size)
-    ckpt = torch.load(io.BytesIO(plaintext))
+    ckpt = torch.load(io.BytesIO(plaintext),map_location=torch.device('cpu'))
     args = {**DEFAULT_CFG_DICT, **(ckpt.get("train_args", {}))}  # combine model and default args, preferring model args
     model = (ckpt.get("ema") or ckpt["model"]).to(device).float()  # FP32 model
 
