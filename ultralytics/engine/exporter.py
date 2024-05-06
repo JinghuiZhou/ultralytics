@@ -363,7 +363,6 @@ class Exporter:
 
         opset_version = self.args.opset or get_latest_opset()
         LOGGER.info(f"\n{prefix} starting export with onnx {onnx.__version__} opset {opset_version}...")
-        f = str(self.file.with_suffix(".onnx"))
 
         output_names = ["output0", "output1"] if isinstance(self.model, SegmentationModel) else ["output0"]
         dynamic = self.args.dynamic
