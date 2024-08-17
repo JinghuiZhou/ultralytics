@@ -134,19 +134,30 @@ class ClassificationTrainer(BaseTrainer):
         """Plots metrics from a CSV file."""
         plot_results(file=self.csv, classify=True, on_plot=self.on_plot)  # save results.png
 
+    # def final_eval(self):
+    #     """Evaluate trained model and save validation results."""
+    #     for f in self.last, self.best:
+    #         if f.exists():
+    #             strip_optimizer(f)  # strip optimizers
+    #             if f is self.best:
+    #                 LOGGER.info(f"\nValidating {f}...")
+    #                 self.validator.args.data = self.args.data
+    #                 self.validator.args.plots = self.args.plots
+    #                 self.metrics = self.validator(model=f)
+    #                 self.metrics.pop("fitness", None)
+    #                 self.run_callbacks("on_fit_epoch_end")
+    #     LOGGER.info(f"Results saved to {colorstr('bold', self.save_dir)}")
+
     def final_eval(self):
         """Evaluate trained model and save validation results."""
-        for f in self.last, self.best:
-            if f.exists():
-                strip_optimizer(f)  # strip optimizers
-                if f is self.best:
-                    LOGGER.info(f"\nValidating {f}...")
-                    self.validator.args.data = self.args.data
-                    self.validator.args.plots = self.args.plots
-                    self.metrics = self.validator(model=f)
-                    self.metrics.pop("fitness", None)
-                    self.run_callbacks("on_fit_epoch_end")
-        LOGGER.info(f"Results saved to {colorstr('bold', self.save_dir)}")
+        self.best_model = strip_optimizer(self.best_model)
+        LOGGER.info(f"\nValidating ...")
+        self.validator.args.data = self.args.data
+        self.validator.args.plots = self.args.plots
+        self.metrics = self.validator(model=self.best_model)
+        self.metrics.pop("fitness", None)
+        self.run_callbacks("on_fit_epoch_end")
+
 
     def plot_training_samples(self, batch, ni):
         """Plots training samples with their annotations."""
