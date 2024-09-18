@@ -268,10 +268,16 @@ def set_logging(name="LOGGING_NAME", verbose=True):
     stream_handler.setFormatter(formatter)
     stream_handler.setLevel(level)
 
+    # Create a FileHandler to output logs to a file
+    file_handler = logging.FileHandler('output.txt', mode='w', encoding='utf-8')
+    file_handler.setFormatter(formatter)
+    file_handler.setLevel(level)
+
     # Set up the logger
     logger = logging.getLogger(name)
     logger.setLevel(level)
     logger.addHandler(stream_handler)
+    logger.addHandler(file_handler)     # Add file handler
     logger.propagate = False
     return logger
 
