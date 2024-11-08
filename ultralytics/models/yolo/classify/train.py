@@ -41,9 +41,9 @@ class ClassificationTrainer(BaseTrainer):
         """Set the YOLO model's class names from the loaded dataset."""
         self.model.names = self.data["names"]
 
-    def get_model(self, cfg=None, weights=None, verbose=True):
+    def get_model(self, cfg=None, weights=None, verbose=True, reg_max=None):
         """Returns a modified PyTorch model configured for training YOLO."""
-        model = ClassificationModel(cfg, nc=self.data["nc"], verbose=verbose and RANK == -1)
+        model = ClassificationModel(cfg, nc=self.data["nc"], verbose=verbose and RANK == -1, reg_max=reg_max)
         if weights:
             model.load(weights)
 
